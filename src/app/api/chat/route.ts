@@ -4,6 +4,7 @@ import { SYSTEM_PROMPTS } from "@/lib/workflows";
 const anthropic = new Anthropic();
 
 export const maxDuration = 120;
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   const { workflowId, messages } = await req.json();
@@ -22,62 +23,63 @@ export async function POST(req: Request) {
   }));
 
   const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (data: Record<string, unknown>) => {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
-        );
-      };
+  const send = async (data: Record<string, unknown>) => {
+    await writer.write(
+      encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+    );
+  };
 
-      try {
-        const rawStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: apiMessages,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          tools: [
-            {
-              type: "web_search_20250305",
-              name: "web_search",
-              max_uses: 10,
-            },
-          ] as any,
-        });
+  // Run the streaming in the background so the Response starts immediately
+  (async () => {
+    try {
+      const rawStream = anthropic.messages.stream({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: apiMessages,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tools: [
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: 10,
+          },
+        ] as any,
+      });
 
-        rawStream.on("text", (text) => {
-          send({ type: "text", text });
-        });
+      rawStream.on("text", (text) => {
+        send({ type: "text", text });
+      });
 
-        rawStream.on("contentBlock", (block) => {
-          if (block.type === "server_tool_use") {
-            send({ type: "tool_use", tool: block.name });
-          }
-          if (block.type === "web_search_tool_result") {
-            send({ type: "search_done" });
-          }
-        });
+      rawStream.on("contentBlock", (block) => {
+        if (block.type === "server_tool_use") {
+          send({ type: "tool_use", tool: block.name });
+        }
+        if (block.type === "web_search_tool_result") {
+          send({ type: "search_done" });
+        }
+      });
 
-        await rawStream.finalMessage();
+      await rawStream.finalMessage();
+      await send({ type: "done" });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown error";
+      await send({ type: "error", error: message });
+    } finally {
+      await writer.close();
+    }
+  })();
 
-        send({ type: "done" });
-        controller.close();
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        send({ type: "error", error: message });
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
+  return new Response(readable, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }
