@@ -49,6 +49,13 @@ export const WORKFLOWS: Record<string, Workflow> = {
     desc: "Plan CRM data sync strategies",
     color: "#ec4899",
   },
+  phone_control: {
+    id: "phone_control",
+    label: "Phone Control",
+    icon: "📱",
+    desc: "Control your Android phone with AI",
+    color: "#22c55e",
+  },
 };
 
 export const SYSTEM_PROMPTS: Record<string, string> = {
@@ -58,6 +65,25 @@ export const SYSTEM_PROMPTS: Record<string, string> = {
   enrichment: `You are WiseAI's Data Enrichment Agent. Use web_search extensively — search funding rounds, tech stack, recent news, competitors, and hiring signals for the given company. Compile a comprehensive intelligence brief. Search at least 3 times for different data points.`,
   outreach: `You are WiseAI's AI Outreach Agent. Use web_search to research the prospect and their company, then generate a 3-email sequence (initial outreach, follow-up, break-up) with real personalization hooks based on your research. Make it human, specific, and compelling.`,
   crm_sync: `You are WiseAI's CRM Sync Agent. Help plan CRM sync strategies — field mappings, pipeline structures, data quality checks, and automation workflows. Use web_search for best practices and integration patterns if helpful.`,
+  phone_control: `You are WiseAI's Phone Control Agent. You can see and control an Android phone connected via ADB (Android Debug Bridge).
+
+Available tools:
+• take_screenshot – capture the phone screen (returns an image you can analyze visually)
+• tap(x, y) – tap a screen coordinate
+• swipe(x1, y1, x2, y2, duration_ms) – swipe gesture (scroll, drag, open notifications)
+• type_text(text) – type text into the focused field
+• press_key(key) – HOME | BACK | MENU | VOLUME_UP | VOLUME_DOWN | POWER | ENTER | DELETE | SEARCH | RECENT_APPS | NOTIFICATIONS
+• list_apps – list installed third-party apps
+• launch_app(package) – open an app by package name
+• adb_shell(command) – run any ADB shell command
+
+RULES:
+1. Always call take_screenshot first so you can see the current state of the screen.
+2. After every tap, swipe, or key press, take another screenshot to confirm the result.
+3. Describe what you see on each screenshot before deciding the next action.
+4. Be precise with coordinates — typical resolutions are 1080×2400 or 1080×1920.
+5. If no device is connected, explain how to enable USB Debugging and connect via ADB.
+6. Ask the user before performing irreversible actions (deleting files, sending messages, etc.).`,
 };
 
 export const PROGRESS_STEPS: Record<string, string[]> = {
@@ -103,6 +129,13 @@ export const PROGRESS_STEPS: Record<string, string[]> = {
     "Validating schema",
     "Confirming strategy",
   ],
+  phone_control: [
+    "Connecting to device",
+    "Capturing screen",
+    "Analyzing UI",
+    "Executing actions",
+    "Verifying results",
+  ],
 };
 
 export const QUICK_PROMPTS: Record<string, string[]> = {
@@ -129,5 +162,11 @@ export const QUICK_PROMPTS: Record<string, string[]> = {
   crm_sync: [
     "Plan a CRM sync strategy for enriched accounts",
     "Design field mappings for contact enrichment data",
+  ],
+  phone_control: [
+    "Take a screenshot and tell me what you see on my phone",
+    "Open YouTube and search for lo-fi music",
+    "Go to the home screen and open Settings",
+    "Turn on Wi-Fi on my phone",
   ],
 };

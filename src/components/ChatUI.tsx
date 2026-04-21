@@ -41,6 +41,7 @@ export default function ChatUI() {
   const [streamingText, setStreamingText] = useState("");
   const [searchCount, setSearchCount] = useState(0);
   const [stats, setStats] = useState({ queries: 0, searches: 0 });
+  const [phoneScreenshot, setPhoneScreenshot] = useState<string | null>(null);
 
   const endRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -62,6 +63,11 @@ export default function ChatUI() {
       clearInterval(elapsedTimerRef.current);
     };
   }, []);
+
+  // Clear phone screen when switching away from phone_control
+  useEffect(() => {
+    if (wfId !== "phone_control") setPhoneScreenshot(null);
+  }, [wfId]);
 
   const resetProgress = useCallback(() => {
     clearTimeout(stepTimerRef.current);
@@ -150,13 +156,16 @@ export default function ChatUI() {
       let totalSearches = 0;
 
       try {
-        const res = await fetch("/api/chat", {
+        const isPhone = currentWf === "phone_control";
+        const endpoint = isPhone ? "/api/phone-chat" : "/api/chat";
+        const body = isPhone
+          ? JSON.stringify({ messages: history })
+          : JSON.stringify({ workflowId: currentWf, messages: history });
+
+        const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            workflowId: currentWf,
-            messages: history,
-          }),
+          body,
           signal: ctrl.signal,
         });
 
@@ -191,8 +200,18 @@ export default function ChatUI() {
               } else if (event.type === "search_done") {
                 totalSearches++;
                 setSearchCount(totalSearches);
+              } else if (event.type === "screenshot") {
+                setPhoneScreenshot(event.data as string);
+              } else if (event.type === "tool_start") {
+                const label = `\n[Running: ${event.tool}...]\n`;
+                accumulated += label;
+                setStreamingText(accumulated);
+              } else if (event.type === "tool_result") {
+                const label = `[Done: ${event.tool}]\n`;
+                accumulated += label;
+                setStreamingText(accumulated);
               } else if (event.type === "error") {
-                throw new Error(event.error);
+                throw new Error(event.error as string);
               } else if (event.type === "done") {
                 // Stream complete
               }
@@ -358,6 +377,39 @@ export default function ChatUI() {
             ))}
           </div>
         </div>
+
+        {/* Live phone screen panel */}
+        {wfId === "phone_control" && phoneScreenshot && (
+          <div className="flex items-start gap-3 border-b border-slate-800 bg-[#070d15] px-4 py-3">
+            <div className="overflow-hidden rounded-2xl border-2 border-slate-700 shadow-xl shadow-black/40">
+              <div className="flex items-center justify-between bg-slate-800/80 px-3 py-1">
+                <span className="text-[10px] font-semibold text-slate-400">
+                  Live Phone Screen
+                </span>
+                <span className="flex items-center gap-1 text-[9px] text-green-400">
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+                  ADB
+                </span>
+              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`data:image/png;base64,${phoneScreenshot}`}
+                alt="Current phone screen"
+                className="block"
+                style={{ maxHeight: 260, maxWidth: 140, objectFit: "contain" }}
+              />
+            </div>
+            <div className="flex flex-col gap-1 pt-1">
+              <p className="text-[11px] font-semibold text-slate-300">
+                Phone Screen
+              </p>
+              <p className="text-[10px] text-slate-500">
+                Latest screenshot from your device. Claude sees this image
+                and can interact with any element on screen.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Chat area */}
         <div className="flex flex-1 flex-col overflow-auto p-4">
